@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ml-serving
+  labels:
+    # The serving pods run non-root, drop all capabilities and use the
+    # RuntimeDefault seccomp profile, so the strictest Pod Security level holds.
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

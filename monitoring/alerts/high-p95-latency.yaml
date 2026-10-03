@@ -1,0 +1,14 @@
+displayName: "ResNet serving: P95 latency above 500 ms"
+severity: WARNING
+duration: 300s
+query: |
+  histogram_quantile(0.95,
+    sum by (le) (rate(tfserving_request_latency_bucket{cluster="${cluster_name}", namespace="${namespace}", API="predict"}[5m]))
+  ) / 1000 > 500
+documentation: |
+  Server-side P95 latency has exceeded the 500 ms SLO for 5 minutes.
+
+  Compare request vs runtime latency on the dashboard: a large gap means requests
+  are queueing (not enough replicas); a high runtime means each inference is slow
+  (CPU contention, throttling, oversized batches).
+  `kubectl -n ${namespace} get hpa resnet-hpa`

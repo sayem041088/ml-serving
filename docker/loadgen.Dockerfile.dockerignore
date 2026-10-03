@@ -1,0 +1,7 @@
+# BuildKit uses this instead of the root .dockerignore for loadgen.Dockerfile.
+*
+!requirements.txt
+!locust/
+!scripts/smoke_test.sh
+locust/__pycache__
+locust/test_payload_batch*.json

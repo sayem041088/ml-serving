@@ -1,0 +1,12 @@
+displayName: "ResNet serving: pods restarting"
+severity: WARNING
+duration: 0s
+query: |
+  sum by (pod_name) (
+    increase(kubernetes_io:container_restart_count{monitored_resource="k8s_container", cluster_name="${cluster_name}", namespace_name="${namespace}", container_name="tensorflow-serving"}[15m])
+  ) > 2
+documentation: |
+  A serving container restarted more than twice in 15 minutes.
+
+  Usual causes: OOMKilled (memory limit 4Gi), failing liveness probe, or a bad image.
+  `kubectl -n ${namespace} describe pod <pod>` and check "Last State".

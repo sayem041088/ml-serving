@@ -1,0 +1,10 @@
+displayName: "ResNet serving: no ready replicas"
+severity: CRITICAL
+duration: 60s
+query: |
+  max(kube_deployment_status_replicas_available{cluster="${cluster_name}", namespace="${namespace}", deployment="resnet-serving"}) < 1
+documentation: |
+  The model-serving Deployment has no available replicas: the endpoint is down.
+
+  `kubectl -n ${namespace} get pods -l app=resnet-serving` and
+  `kubectl -n ${namespace} rollout undo deployment/resnet-serving` if a rollout caused it.

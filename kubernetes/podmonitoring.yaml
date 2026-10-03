@@ -1,0 +1,32 @@
+# Google Cloud Managed Service for Prometheus scrapes TF Serving's metrics
+# (enabled by docker/monitoring.config) into Cloud Monitoring.
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: resnet-serving
+spec:
+  selector:
+    matchLabels:
+      app: resnet-serving
+  endpoints:
+    - port: http
+      path: /monitoring/prometheus/metrics
+      interval: 15s
+      metricRelabeling:
+        # TF Serving names metrics like ":tensorflow:serving:request_count".
+        # Rename the ones used by dashboards/alerts to tfserving_*, then drop
+        # everything else (~40 :tensorflow:core:* series per pod) to keep
+        # ingestion cost down.
+        - sourceLabels: [__name__]
+          regex: ":tensorflow:serving:batching_session:queuing_latency(.*)"
+          targetLabel: __name__
+          replacement: "tfserving_batch_queuing_latency${1}"
+          action: replace
+        - sourceLabels: [__name__]
+          regex: ":tensorflow:serving:(request_count|request_latency.*|runtime_latency.*)"
+          targetLabel: __name__
+          replacement: "tfserving_${1}"
+          action: replace
+        - sourceLabels: [__name__]
+          regex: "tfserving_.*"
+          action: keep

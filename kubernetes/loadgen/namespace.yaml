@@ -1,0 +1,8 @@
+# Namespace for in-cluster Locust pods (scripts/load_test.sh RUNNER=cluster).
+# Not part of the serving kustomization.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: loadgen
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

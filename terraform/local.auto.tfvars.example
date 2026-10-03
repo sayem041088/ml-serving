@@ -1,0 +1,18 @@
+# Copy to local.auto.tfvars (git-ignored) for environment-specific overrides.
+
+# Projects where the deploying identity cannot grant IAM roles (org policy):
+# run nodes as an existing service account instead of creating a dedicated
+# least-privilege one. See docs/DEPLOYMENT.md, "Locked-down projects".
+# node_service_account = "<PROJECT_NUMBER>-compute@developer.gserviceaccount.com"
+
+# Fixed 1-node pool for in-VPC load generation (scripts/load_test.sh RUNNER=cluster).
+# enable_loadgen_pool = true
+
+# Second apply, after the first deploy has served traffic: alerts on TF Serving
+# metrics (Cloud Monitoring rejects alerts on never-ingested metrics).
+# enable_workload_alerts = true
+
+# GitHub repository allowed to deploy via Workload Identity Federation.
+# github_repository = "<OWNER>/<REPO>"
+
+# alert_email = "<ONCALL_EMAIL>"

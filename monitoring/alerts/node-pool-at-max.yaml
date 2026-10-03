@@ -1,0 +1,9 @@
+displayName: "ResNet serving: node pool at maximum size"
+severity: WARNING
+duration: 900s
+query: |
+  count(kubernetes_io:node_cpu_allocatable_cores{monitored_resource="k8s_node", cluster_name="${cluster_name}", node_name=~".*-${node_pool}-.*"}) >= ${max_node_count}
+documentation: |
+  The ${node_pool} node pool has been at its maximum of ${max_node_count} nodes for 15 minutes, so
+  further load cannot be absorbed by adding pods. Raise `max_node_count` in
+  terraform/terraform.tfvars if this is expected traffic.

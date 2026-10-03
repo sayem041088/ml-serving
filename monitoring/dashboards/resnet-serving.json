@@ -1,0 +1,459 @@
+{
+  "displayName": "ResNet101 serving (${cluster_name})",
+  "mosaicLayout": {
+    "columns": 48,
+    "tiles": [
+      {
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Successful predictions per second",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(tfserving_request_latency_count{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m]))",
+                  "unitOverride": "1/s"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "requests/s",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "requests/s",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Request latency (server side)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.5, sum by (le) (rate(tfserving_request_latency_bucket{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m]))) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "P50",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(tfserving_request_latency_bucket{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m]))) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "P95",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.99, sum by (le) (rate(tfserving_request_latency_bucket{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m]))) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "P99",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(rate(tfserving_request_latency_sum{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m])) / sum(rate(tfserving_request_latency_count{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m])) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "average",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "ms",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "thresholds": [
+              {
+                "label": "P95 SLO",
+                "value": 500,
+                "targetAxis": "Y1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "yPos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Error rate",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "100 * sum(rate(tfserving_request_count{cluster=\"${cluster_name}\", namespace=\"${namespace}\", status!=\"OK\"}[1m])) / sum(rate(tfserving_request_count{cluster=\"${cluster_name}\", namespace=\"${namespace}\"}[1m]))",
+                  "unitOverride": "%"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "error %",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "%",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "thresholds": [
+              {
+                "label": "SLO",
+                "value": 1,
+                "targetAxis": "Y1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 16,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Requests by status (OK=200, INVALID_ARGUMENT=400, NOT_FOUND=404, ...)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (status) (rate(tfserving_request_count{cluster=\"${cluster_name}\", namespace=\"${namespace}\"}[1m]))",
+                  "unitOverride": "1/s"
+                },
+                "plotType": "STACKED_AREA",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "requests/s",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Replicas: HPA desired vs current vs available",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max(kube_horizontalpodautoscaler_status_desired_replicas{cluster=\"${cluster_name}\", namespace=\"${namespace}\", horizontalpodautoscaler=\"resnet-hpa\"})"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "HPA desired",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max(kube_horizontalpodautoscaler_status_current_replicas{cluster=\"${cluster_name}\", namespace=\"${namespace}\", horizontalpodautoscaler=\"resnet-hpa\"})"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "HPA current",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max(kube_deployment_status_replicas_available{cluster=\"${cluster_name}\", namespace=\"${namespace}\", deployment=\"resnet-serving\"})"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "available (ready)",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "max(kube_horizontalpodautoscaler_spec_max_replicas{cluster=\"${cluster_name}\", namespace=\"${namespace}\", horizontalpodautoscaler=\"resnet-hpa\"})"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "HPA max",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "pods",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 32,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "CPU utilisation (% of request, what the HPA sees)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "100 * avg(kubernetes_io:container_cpu_request_utilization{monitored_resource=\"k8s_container\", cluster_name=\"${cluster_name}\", namespace_name=\"${namespace}\", container_name=\"tensorflow-serving\"})",
+                  "unitOverride": "%"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "average",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "100 * max(kubernetes_io:container_cpu_request_utilization{monitored_resource=\"k8s_container\", cluster_name=\"${cluster_name}\", namespace_name=\"${namespace}\", container_name=\"tensorflow-serving\"})",
+                  "unitOverride": "%"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "hottest pod",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "%",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "thresholds": [
+              {
+                "label": "HPA target",
+                "value": 60,
+                "targetAxis": "Y1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "yPos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Memory per pod (non-evictable)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum by (pod_name) (kubernetes_io:container_memory_used_bytes{monitored_resource=\"k8s_container\", cluster_name=\"${cluster_name}\", namespace_name=\"${namespace}\", container_name=\"tensorflow-serving\", memory_type=\"non-evictable\"})",
+                  "unitOverride": "By"
+                },
+                "plotType": "LINE",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "bytes",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 48,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Nodes",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "count(kubernetes_io:node_cpu_allocatable_cores{monitored_resource=\"k8s_node\", cluster_name=\"${cluster_name}\", node_name=~\".*-${node_pool}-.*\"})"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "nodes",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "nodes",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "thresholds": [
+              {
+                "label": "node pool max",
+                "value": ${max_node_count},
+                "targetAxis": "Y1"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "yPos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Node CPU / memory (% of allocatable)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "100 * avg(kubernetes_io:node_cpu_allocatable_utilization{monitored_resource=\"k8s_node\", cluster_name=\"${cluster_name}\", node_name=~\".*-${node_pool}-.*\"})",
+                  "unitOverride": "%"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "CPU",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "100 * avg(sum by (node_name) (kubernetes_io:node_memory_allocatable_utilization{monitored_resource=\"k8s_node\", cluster_name=\"${cluster_name}\", node_name=~\".*-${node_pool}-.*\", memory_type=\"non-evictable\"}))",
+                  "unitOverride": "%"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "memory",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "%",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 64,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Pending pods (waiting for the cluster autoscaler)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(kube_pod_status_phase{cluster=\"${cluster_name}\", namespace=\"${namespace}\", phase=\"Pending\"}) or vector(0)"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "pending",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "pods",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 80,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "Container restarts (10 min)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "sum(increase(kubernetes_io:container_restart_count{monitored_resource=\"k8s_container\", cluster_name=\"${cluster_name}\", namespace_name=\"${namespace}\", container_name=\"tensorflow-serving\"}[10m])) or vector(0)"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "restarts",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "restarts",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "xPos": 24,
+        "yPos": 80,
+        "width": 24,
+        "height": 16,
+        "widget": {
+          "title": "P95: total request vs model runtime (gap = queueing + JSON)",
+          "xyChart": {
+            "dataSets": [
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(tfserving_request_latency_bucket{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"predict\"}[1m]))) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "request P95",
+                "targetAxis": "Y1"
+              },
+              {
+                "timeSeriesQuery": {
+                  "prometheusQuery": "histogram_quantile(0.95, sum by (le) (rate(tfserving_runtime_latency_bucket{cluster=\"${cluster_name}\", namespace=\"${namespace}\", API=\"Predict\"}[1m]))) / 1000",
+                  "unitOverride": "ms"
+                },
+                "plotType": "LINE",
+                "legendTemplate": "runtime P95",
+                "targetAxis": "Y1"
+              }
+            ],
+            "yAxis": {
+              "label": "ms",
+              "scale": "LINEAR"
+            },
+            "chartOptions": {
+              "mode": "COLOR"
+            }
+          }
+        }
+      },
+      {
+        "yPos": 96,
+        "width": 48,
+        "height": 16,
+        "widget": {
+          "title": "TF Serving warnings and errors",
+          "logsPanel": {
+            "filter": "resource.type=\"k8s_container\"\nresource.labels.cluster_name=\"${cluster_name}\"\nresource.labels.namespace_name=\"${namespace}\"\nseverity>=WARNING"
+          }
+        }
+      }
+    ]
+  }
+}

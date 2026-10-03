@@ -1,0 +1,43 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: resnet-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: resnet-serving
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # Percent of the CPU *request* (1 core). A saturated pod uses its
+          # 2-core limit = 200%, so this target leaves room for bursts while
+          # new pods (and possibly new nodes) come up.
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      # React immediately; new capacity takes ~20 s (pod) to ~2 min (node).
+      stabilizationWindowSeconds: 0
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+    scaleDown:
+      # Shorter than the 300 s default so scale-down is visible within the
+      # 5-minute recovery stage of the load test, but removing at most half
+      # the pods per minute to avoid flapping.
+      stabilizationWindowSeconds: 180
+      selectPolicy: Max
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60

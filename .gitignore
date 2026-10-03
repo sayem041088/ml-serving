@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Model artifacts are produced by model/export_model.py (or the Docker build)
+model/resnet101/
+
+# Generated load-test payloads (regenerate with `make payloads`)
+locust/test_payload_batch*.json
+
+# Load-test output
+results/*
+!results/.gitkeep
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfplan
+terraform/tfplan
+terraform/crash.log
+terraform/override.tf
+terraform/*_override.tf
+terraform/*.auto.tfvars
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store

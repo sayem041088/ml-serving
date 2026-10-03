@@ -1,0 +1,10 @@
+displayName: "ResNet serving: HPA at maximum replicas"
+severity: WARNING
+duration: 900s
+query: |
+  max(kube_horizontalpodautoscaler_status_current_replicas{cluster="${cluster_name}", namespace="${namespace}", horizontalpodautoscaler="resnet-hpa"})
+    >= max(kube_horizontalpodautoscaler_spec_max_replicas{cluster="${cluster_name}", namespace="${namespace}", horizontalpodautoscaler="resnet-hpa"})
+documentation: |
+  The HPA has been pinned at maxReplicas for 15 minutes; latency will grow with
+  any further traffic. Raise `maxReplicas` in kubernetes/hpa.yaml (and check node
+  capacity) if the load is legitimate.

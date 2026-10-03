@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: ml-serving
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - configmap.yaml
+  - deployment.yaml
+  - service.yaml
+  - hpa.yaml
+  - pdb.yaml
+  - networkpolicy.yaml
+  - podmonitoring.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: resnet-inference
+    includeSelectors: false
+
+# scripts/deploy.sh sets newName/newTag to the immutable registry image built by
+# CD (e.g. <REGION>-docker.pkg.dev/<PROJECT_ID>/ml-models/resnet101:sha-<git sha>).
+# Never deploy :latest.
+images:
+  - name: resnet101-serving

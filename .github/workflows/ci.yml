@@ -1,0 +1,123 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  TERRAFORM_VERSION: "1.16.5"
+  KUBECONFORM_VERSION: "v0.8.0"
+  KUBERNETES_VERSION: "1.33.0"
+
+# Third-party actions are pinned to commit SHAs (tag in the comment) so a
+# re-pointed tag cannot inject code into the pipeline.
+jobs:
+  python:
+    name: Lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: ruff
+        run: |
+          ruff check --output-format=github .
+          ruff format --check .
+      - name: Shell syntax
+        run: for f in scripts/*.sh docker/entrypoint.sh; do bash -n "$f"; done
+      # Unit + policy tests. Integration tests run against the built image below;
+      # TensorFlow tests are skipped (TF is only installed in the image build).
+      - name: pytest
+        run: pytest -m "not integration and not k8s"
+
+  terraform:
+    name: Terraform validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      - run: terraform fmt -check -recursive -diff terraform
+      - run: terraform -chdir=terraform init -backend=false -input=false
+      - run: terraform -chdir=terraform validate
+
+  kubernetes:
+    name: Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Render kustomization
+        run: kubectl kustomize kubernetes > rendered.yaml
+      - name: kubeconform (strict, incl. PodMonitoring CRD schema)
+        run: |
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar xz kubeconform
+          ./kubeconform -strict -summary -kubernetes-version "${KUBERNETES_VERSION}" \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+            rendered.yaml
+
+  image:
+    name: Build, test and scan image
+    runs-on: ubuntu-latest
+    needs: python
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Full reproducible build: the model is exported inside the Dockerfile.
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile
+          tags: resnet101-serving:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start container
+        run: |
+          docker run -d --name resnet -p 8501:8501 --cpus=2 --read-only --tmpfs /tmp \
+            -e TF_INTRA_OP_PARALLELISM=2 -e TF_INTER_OP_PARALLELISM=2 resnet101-serving:ci
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Catches what unit tests cannot, e.g. a SavedModel that loads in Python
+      # but not in TF Serving's C++ loader.
+      - name: Integration tests against the container
+        env:
+          RESNET_ENDPOINT: http://localhost:8501
+          RESNET_READY_TIMEOUT: "180"
+        run: pytest -m integration
+      - name: Smoke test
+        run: scripts/smoke_test.sh http://localhost:8501
+      - name: Short load test (smoke profile)
+        run: |
+          cd locust
+          LOAD_PROFILE=smoke locust -f locustfile.py --headless --host http://localhost:8501 \
+            --only-summary --exit-code-on-error 1
+      - name: Container logs
+        if: always()
+        run: docker logs resnet 2>&1 | tail -100
+      # Fails on fixable CRITICAL vulnerabilities; the full report is in the log.
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: resnet101-serving:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table

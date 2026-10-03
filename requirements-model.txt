@@ -1,0 +1,5 @@
+# Model export (model/*.py). TensorFlow must not be newer than the TF Serving
+# image (docker/Dockerfile TF_SERVING_VERSION) or the SavedModel may use ops the
+# server does not have.
+tensorflow==2.21.0
+tensorflow-serving-api==2.21.0

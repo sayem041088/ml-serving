@@ -1,0 +1,23 @@
+# Enforced by GKE Dataplane V2 (terraform: datapath_provider = ADVANCED_DATAPATH).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: resnet-serving
+spec:
+  podSelector:
+    matchLabels:
+      app: resnet-serving
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # REST traffic from the load balancer (and Managed Prometheus scraping
+    # /monitoring/prometheus/metrics on the same port), plus in-cluster gRPC.
+    - ports:
+        - port: 8501
+          protocol: TCP
+        - port: 8500
+          protocol: TCP
+  # No egress rules = deny all. The server needs no outbound connections (not
+  # even DNS), so a compromised pod has nowhere to send data.
+  egress: []

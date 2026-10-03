@@ -1,0 +1,13 @@
+displayName: "ResNet serving: error rate above 1%"
+severity: CRITICAL
+duration: 300s
+query: |
+  sum(rate(tfserving_request_count{cluster="${cluster_name}", namespace="${namespace}", status!="OK"}[5m]))
+    / sum(rate(tfserving_request_count{cluster="${cluster_name}", namespace="${namespace}"}[5m]))
+    > 0.01
+documentation: |
+  More than 1% of TF Serving requests failed over 5 minutes (SLO: error rate < 1%).
+
+  - `INVALID_ARGUMENT` usually means bad client payloads; check recent client releases.
+  - `DEADLINE_EXCEEDED`/`UNAVAILABLE` usually means overload: check the HPA and pending pods.
+  - `kubectl -n ${namespace} logs -l app=resnet-serving --tail=100`

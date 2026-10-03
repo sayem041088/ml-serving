@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resnet-serving
+  labels:
+    app: resnet-serving
+spec:
+  # No `replicas`: the HPA owns the replica count (minReplicas: 2). Keeping it
+  # here would let every `kubectl apply` fight the autoscaler.
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0   # never drop below current capacity during a rollout
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: resnet-serving
+  template:
+    metadata:
+      labels:
+        app: resnet-serving
+      annotations:
+        kubectl.kubernetes.io/default-container: tensorflow-serving
+    spec:
+      serviceAccountName: resnet-serving
+      automountServiceAccountToken: false
+      # preStop sleep (15 s) + time for in-flight requests to finish.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Spread replicas across nodes so one node failure or drain cannot take
+      # out every replica. A hard rule (DoNotSchedule): with ScheduleAnyway, a
+      # cluster-autoscaler scale-down on GKE rescheduled an evicted pod next to
+      # the other replica, leaving both on one node. Cost: the autoscaler may
+      # add a node a little earlier to keep the skew at 1.
+      # nodeTaintsPolicy: Honor is essential: by default tainted nodes (the
+      # loadgen pool) count as domains with 0 replicas, so with maxSkew 1 every
+      # node already running a replica becomes ineligible and each new pod
+      # demands a new node (observed on GKE: a 2-replica rollout added a node).
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          nodeTaintsPolicy: Honor
+          labelSelector:
+            matchLabels:
+              app: resnet-serving
+      containers:
+        - name: tensorflow-serving
+          # Logical name. scripts/deploy.sh rewrites it to the immutable registry
+          # image (<REGION>-docker.pkg.dev/<PROJECT_ID>/ml-models/resnet101:<tag>);
+          # as-is it matches `make build-local` for local clusters (kind).
+          image: resnet101-serving:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8501
+            - name: grpc
+              containerPort: 8500
+          envFrom:
+            - configMapRef:
+                name: resnet-serving-env
+          # requests drive scheduling and HPA utilisation (usage / request);
+          # limits cap bursts. 1 CPU fits 3 pods on an e2-standard-4 node, so
+          # 2 nodes hold 6 pods and HPA maxReplicas (10) needs the cluster
+          # autoscaler to add nodes. With the plan's 500m, 10 pods would fit
+          # on the initial 2 nodes and node scaling would never be exercised.
+          # Memory: ~0.45 GiB measured under load; the headroom is for batch
+          # experiments (16 images per request) and many concurrent requests.
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          # The REST port only opens after the model is loaded *and* warmed up,
+          # so this succeeds exactly when the pod can serve. It replaces a
+          # fixed initialDelaySeconds: up to 5 min for a slow image pull/load.
+          startupProbe:
+            httpGet:
+              path: /v1/models/resnet101
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
+          # After startup, readiness only checks that the REST listener accepts
+          # connections. An HTTP probe queues behind inference requests: in the
+          # kind spike test (P50 9 s) it timed out and pulled a healthy pod out
+          # of rotation, pushing its share onto the remaining pod - the start of
+          # a cascading failure. A saturated pod can still serve; removing it
+          # only concentrates load. (The model is baked in and never unloaded,
+          # so "model AVAILABLE" cannot regress after the startup probe.)
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # Same reasoning, with worse consequences: an HTTP liveness probe that
+          # times out under load makes the kubelet *restart* a pod that is
+          # merely busy. A TCP check on the gRPC port only fails if the server
+          # process is actually gone.
+          livenessProbe:
+            tcpSocket:
+              port: grpc
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            # Keep serving while the endpoint removal propagates to kube-proxy
+            # and the load balancer; otherwise scale-down and rollouts drop
+            # in-flight connections.
+            preStop:
+              exec:
+                command: ["sleep", "15"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tfserving
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: resnet-serving-config
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

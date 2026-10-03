@@ -1,0 +1,12 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: resnet-pdb
+spec:
+  # maxUnavailable rather than minAvailable: 1. At 2 replicas they behave the
+  # same, but at 10 replicas minAvailable: 1 would allow a node upgrade or a
+  # cluster-autoscaler scale-down to evict 9 pods at once under load.
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: resnet-serving

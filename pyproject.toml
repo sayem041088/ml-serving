@@ -1,0 +1,27 @@
+[project]
+name = "gke-resnet-inference"
+version = "1.0.0"
+description = "Scalable ResNet101 inference on GKE with TensorFlow Serving"
+requires-python = ">=3.11"
+license = "MIT"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["model/resnet101"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["resnet_client", "download_model", "export_model", "profiles"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "model", "locust", "scripts"]
+addopts = "-ra --strict-markers"
+markers = [
+  "integration: needs a running TF Serving endpoint (RESNET_ENDPOINT)",
+  "k8s: needs kubectl access to the deployed cluster (K8S_TESTS=1)",
+  "tensorflow: needs TensorFlow installed (requirements-model.txt)",
+]
