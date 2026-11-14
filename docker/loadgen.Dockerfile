@@ -7,7 +7,7 @@
 #
 #   docker build -t loadgen -f docker/loadgen.Dockerfile .
 
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
